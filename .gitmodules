@@ -1,0 +1,3 @@
+[submodule "DigiLeTs"]
+	path = DigiLeTs
+	url = https://github.com/CognitiveModeling/DigiLeTs.git
