@@ -1,20 +1,15 @@
 import os
 import sys
-import matplotlib.pyplot as plt
-import numpy as np
 from pathlib import Path
 
 sys.path.append(Path().resolve())
-sys.path.append(os.path.join(Path().resolve(), "DigiLeTs/scripts"))
 
+import numpy as np
 import glob
-import cv2
-import copy
-
-from data import read_original_data
-from env import DrawingEnv_Moc1
-
 from tqdm import tqdm
+
+from DigiLeTs.scripts.data import read_original_data
+from env import DrawingEnv_Moc1
 
 
 def fill_traj(target_position, initial_position, norm, z_pos=0):
@@ -28,7 +23,6 @@ def fill_traj(target_position, initial_position, norm, z_pos=0):
 
 
 def get_trajectory(instance, initial_position):
-    # initial_position = np.array([0.8, 0.2, 0])
     norm = np.linalg.norm(instance[1:, :2] - instance[:-1, :2], axis=-1)
     norm_mean = norm[norm > 0].mean()
     trajectory = fill_traj(target_position=instance[0], initial_position=initial_position, norm=norm_mean)
@@ -58,24 +52,24 @@ def get_image_sequence(instance, size=256, line_width=3, threshold=None):
     instance[:, 1] = 1 - instance[:, 1]
     trajectory = get_trajectory(instance=instance, initial_position=initial_position)
 
+    observations = dict()
     env = DrawingEnv_Moc1(params)
     observation = env.init()
-    images = [observation["image"]]
-    mask = [observation["mask"]]
+    for key in observation.keys():
+        observations[key] = [observation[key]]
     actions = []
-    positions = [observation["position"]]
     for t in range(0, len(trajectory) - 1):
         observation, reward, done, info = env.step(trajectory[t])
-        images.append(observation["image"])
-        positions.append(observation["position"])
-        mask.append(observation["mask"])
+        for key in observation.keys():
+            observations[key].append(observation[key])
         action = trajectory[t + 1][:2] - trajectory[t][:2]
         actions.append(action)
 
-    images = np.array(images).astype(np.uint8)
-    mask = np.array(mask).astype(np.uint8)
-    positions = np.array(positions)
-    observations = dict(image=images, mask=mask, position=positions)
+    for key in observations.keys():
+        if ("image" in key) or ("mask" == key):
+            observations[key] = np.array(observations[key]).astype(np.uint8)
+        else:
+            observations[key] = np.array(observations[key])
     actions = np.array(actions)
     rewards = np.zeros(len(actions))
     dones = np.zeros(len(actions))
@@ -104,16 +98,16 @@ def main():
                 instance = _instance[: participant["lengths"][s, i]]
                 observations, actions, rewards, dones = get_image_sequence(instance, size=64, line_width=3)
                 dataset = dict()
-                dataset["image"] = observations["image"]
-                dataset["mask"] = observations["mask"]
-                dataset["position"] = observations["position"]
+                for key in observations.keys():
+                    dataset[key] = observations[key]
                 dataset["action"] = actions
                 dataset["reward"] = rewards
                 dataset["done"] = dones
+                dataset["digit"] = np.ones_like(dones) * s
+                dataset["digit_onehot"] = np.identity(10, dtype=np.float32)[dataset["digit"].astype(np.int16)]
 
                 save_foldername = "{}/{}".format(save_folder, s)
                 save_filename = "{}/{}_{}.npy".format(save_foldername, basename, i)
-                # print(save_filename)
                 os.makedirs(save_foldername, exist_ok=True)
                 np.save(save_filename, dataset)
 
