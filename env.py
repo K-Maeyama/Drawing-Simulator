@@ -180,8 +180,13 @@ class DrawingEnv_Moc1:
             image_body=obs_body["image"],
             image_residual=self.obs_residual["image"],
             mask=mask,
-            position=obs_digit["position"],
+            position=obs_digit["position"] / self.params["size"],
         )
+        for size in [64, 128, 256]:
+            observation[f"image_{size}"] = cv2.resize(
+                observation["image"],
+                dsize=(size, size),
+            )
         return observation
 
     def trans_pos(self, position):
