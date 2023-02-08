@@ -174,13 +174,15 @@ class DrawingEnv_Moc1:
             obs_residual=self.obs_residual,
             mask=mask,
         )
+        position = obs_digit["position"]
+        position[:2] = position[:2] / self.params["size"]
         observation = dict(
             image=image,
             image_digit=obs_digit["image"],
             image_body=obs_body["image"],
             image_residual=self.obs_residual["image"],
             mask=mask,
-            position=obs_digit["position"] / self.params["size"],
+            position=position,
         )
         for size in [64, 128, 256]:
             observation[f"image_{size}"] = cv2.resize(

@@ -7,6 +7,7 @@ sys.path.append(Path().resolve())
 import numpy as np
 import glob
 from tqdm import tqdm
+import copy
 
 from DigiLeTs.scripts.data import read_original_data
 from env import DrawingEnv_Moc1
@@ -77,6 +78,38 @@ def get_image_sequence(instance, size=256, line_width=3, threshold=None):
     return observations, actions, rewards, dones
 
 
+def get_tau(position):
+    d_pos = position[1:, :2] - position[:-1, :2]
+    norm_body = np.linalg.norm(d_pos, axis=-1)
+    norm_digit = copy.deepcopy(norm_body)
+    norm_digit[position[1:, 2] == 0] = 0
+    total_norm_body = [0]
+    total_norm_digit = [0]
+    for t in range(len(norm_body)):
+        total_norm_body.append(norm_body[:t].sum())
+        total_norm_digit.append(norm_digit[:t].sum())
+    tau_norm_body = total_norm_body / total_norm_body[-1]
+    tau_norm_digit = total_norm_digit / total_norm_digit[-1]
+
+    timestep_body = np.ones(len(norm_body))
+    timestep_digit = np.ones(len(norm_digit))
+    timestep_digit[position[1:, 2] == 0] = 0
+    total_timestep_body = [0]
+    total_timestep_digit = [0]
+    for t in range(len(timestep_body)):
+        total_timestep_body.append(timestep_body[:t].sum())
+        total_timestep_digit.append(timestep_digit[:t].sum())
+    tau_time_body = total_timestep_body / total_timestep_body[-1]
+    tau_time_digit = total_timestep_digit / total_timestep_digit[-1]
+    tau = dict(
+        tau_norm_body=np.expand_dims(tau_norm_body, -1),
+        tau_norm_digit=np.expand_dims(tau_norm_digit, -1),
+        tau_time_body=np.expand_dims(tau_time_body, -1),
+        tau_time_digit=np.expand_dims(tau_time_digit, -1),
+    )
+    return tau
+
+
 def main():
     data_dir = "DigiLeTs/data/preprocessed/complete"
     filenames = glob.glob(os.path.join(data_dir, "*_preprocessed"))
@@ -94,12 +127,15 @@ def main():
                 # 数字以外は省略
                 break
             for i, _instance in enumerate(symbol):
-
+                # 各々，同じsymbolを5回ずつ書いている
                 instance = _instance[: participant["lengths"][s, i]]
                 observations, actions, rewards, dones = get_image_sequence(instance, size=64, line_width=3)
                 dataset = dict()
                 for key in observations.keys():
                     dataset[key] = observations[key]
+                tau = get_tau(observations["position"])
+                for key in tau.keys():
+                    dataset[key] = tau[key]
                 dataset["action"] = actions
                 dataset["reward"] = rewards
                 dataset["done"] = dones
