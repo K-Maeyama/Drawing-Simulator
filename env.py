@@ -174,8 +174,7 @@ class DrawingEnv_Moc1:
             obs_residual=self.obs_residual,
             mask=mask,
         )
-        position = obs_digit["position"]
-        position[:2] = position[:2] / self.params["size"]
+        position = self.reverse_pos(obs_digit["position"])
         observation = dict(
             image=image,
             image_digit=obs_digit["image"],
@@ -193,6 +192,11 @@ class DrawingEnv_Moc1:
 
     def trans_pos(self, position):
         position[:2] = self.digit_area_origin + position[:2] * self.digit_area_size
+        return position
+
+    def reverse_pos(self, pos):
+        position = copy.deepcopy(pos)
+        position[:2] = (pos[:2] - self.digit_area_origin) / self.digit_area_size
         return position
 
     def init(self, initial_position=None):
