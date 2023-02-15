@@ -40,18 +40,12 @@ def get_trajectory(instance, initial_position):
     return trajectory
 
 
-def get_image_sequence(instance, size=256, line_width=3, threshold=None):
-    initial_position = np.array((0.8, 0.8, 0))
-    params = dict(
-        size=256,
-        line_color=(50, 50, 50),
-        line_width=3,
-        digit_area=[30, 36, 158, 164],
-        initial_position=initial_position,
-        max_step=2e2,
-    )
+def get_image_sequence(instance, params, draw_line=True):
+    params = copy.deepcopy(params)
     instance[:, 1] = 1 - instance[:, 1]
-    trajectory = get_trajectory(instance=instance, initial_position=initial_position)
+    trajectory = get_trajectory(instance=instance, initial_position=params["initial_position"])
+    if not draw_line:
+        trajectory[:, 2] = 0
 
     observations = dict()
     env = DrawingEnv_Moc1(params)
@@ -63,7 +57,8 @@ def get_image_sequence(instance, size=256, line_width=3, threshold=None):
         observation, reward, done, info = env.step(trajectory[t])
         for key in observation.keys():
             observations[key].append(observation[key])
-        action = trajectory[t + 1][:2] - trajectory[t][:2]
+        # action = trajectory[t + 1][:2] - trajectory[t][:2]
+        action = trajectory[t + 1] - trajectory[t]
         actions.append(action)
 
     for key in observations.keys():
@@ -114,14 +109,23 @@ def main():
     data_dir = "DigiLeTs/data/preprocessed/complete"
     filenames = glob.glob(os.path.join(data_dir, "*_preprocessed"))
 
+    params = dict(
+        size=256,
+        line_color=(50, 50, 50),
+        line_width=3,
+        digit_area=[30, 36, 158, 164],
+        initial_position=np.array((0.8, 0.8, 0)),
+        max_step=2e2,
+    )
+
     for idx in tqdm(range(len(filenames))):
         filename = filenames[idx]
         basename = os.path.basename(filename)
         participant = read_original_data(filename)
         if idx < 70:
-            save_folder = "dataset/Drawing/realistic/train"
+            save_folder = "dataset/Drawing/realistic_no_line/train"
         else:
-            save_folder = "dataset/Drawing/realistic/validation"
+            save_folder = "dataset/Drawing/realistic_no_line/validation"
         for s, symbol in enumerate(participant["trajectories"]):
             if s > 9:
                 # 数字以外は省略
@@ -129,7 +133,7 @@ def main():
             for i, _instance in enumerate(symbol):
                 # 各々，同じsymbolを5回ずつ書いている
                 instance = _instance[: participant["lengths"][s, i]]
-                observations, actions, rewards, dones = get_image_sequence(instance, size=64, line_width=3)
+                observations, actions, rewards, dones = get_image_sequence(instance, params=params, draw_line=False)
                 dataset = dict()
                 for key in observations.keys():
                     dataset[key] = observations[key]
